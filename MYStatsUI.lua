@@ -237,7 +237,7 @@ function UIConfig:SetupConfigInterface()
     MYS_ConfigFrame.titleString = MYS_ConfigFrame.title:CreateFontString(nil, "OVERLAY", "GameFontNormal");
     MYS_ConfigFrame.titleString:SetPoint("TOPLEFT", MYS_ConfigFrame, "TOPLEFT", 10, -10);
     MYS_ConfigFrame.titleString:SetText('|cff00c0ff喵影三围属性|r');
-    MYS_ConfigFrame.titleString:SetFont("Fonts\\FRIZQT__.tff", 20, "OUTLINE");
+    MYS_ConfigFrame.titleString:SetFont(STANDARD_TEXT_FONT, 20, "OUTLINE");
     -- Stats frames alpha checkbox
     MYS_ConfigFrame.chkBtnStatsFramesAlpha = CreateFrame("CheckButton","MYS_REALTIME_UPDATE",MYS_ConfigFrame, "UICheckButtonTemplate");
     MYS_ConfigFrame.chkBtnStatsFramesAlpha:SetPoint("TOPLEFT", 20, -40);
