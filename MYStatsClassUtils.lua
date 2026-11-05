@@ -1,11 +1,22 @@
 --[[
     Util functions specific for Classes
+
+    wow-forever 移植说明：
+    10.0 起天赋系统整体改版，旧的「天赋标签 + 标签内序号」API
+    （GetNumTalentTabs / GetNumTalents / GetTalentInfo）已被移除，
+    无限客户端同样没有。MYS_TALENT_TAB_API_AVAILABLE（见 MYStatsCompat.lua）
+    为 false 时，本文件所有天赋派生统计统一降级为「无天赋加成」：
+    MYS_GetTalentInfo 返回 rank = 0，调用方的 select(5, ...) 照旧工作，
+    不会崩溃，也不会伪造天赋数据。装备/属性/宝石等统计不受影响。
 ]]
 
 g_TalentsIndexMap = nil
 MYS_GenerateTalentsIndexMap = function()
 	if g_TalentsIndexMap then return end;
-	
+
+	-- 天赋标签 API 不存在时无法生成索引映射，直接放弃（后续逻辑会安全降级）
+	if not MYS_TALENT_TAB_API_AVAILABLE then return end;
+
 	local talentsIndexMap = {};
 	for tab=1,3 do
 	   local tierColumn = {};
@@ -41,6 +52,13 @@ MYS_GenerateTalentsIndexMap = function()
 end
 
 function MYS_GetTalentInfo(tabIndex, talentIndex)
+	-- wow-forever: 天赋数据不可用时返回 5 个返回值，第 5 位（rank）固定为 0。
+	-- 这样所有 select(5, MYS_GetTalentInfo(...)) 的调用方都拿到 0（= 未点该天赋），
+	-- 天赋加成自然归零，既不会索引 nil 也不会崩。
+	if not MYS_TALENT_TAB_API_AVAILABLE then
+		return nil, nil, nil, nil, 0
+	end
+
 	if not g_TalentsIndexMap then return GetTalentInfo(tabIndex, talentIndex) end
 	
 	local newTalentIndex = g_TalentsIndexMap[tabIndex][talentIndex];

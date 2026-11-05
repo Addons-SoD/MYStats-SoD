@@ -1,25 +1,28 @@
 -- Access the namespace
 local _, core = ...;
 local hideCSC=false
+-- wow-forever: 统一走 MYS_RegisterEvent（见 MYStatsCompat.lua）。
+-- 无限客户端没有 RUNE_UPDATED 等 SoD/Classic 专属事件，直接 RegisterEvent
+-- 会抛 "unknown event" 并中断本文件后续代码，所以先按 C_EventUtils.IsEventValid 过滤。
 local characterStatsClassicEventFrame = CreateFrame("Frame");
-characterStatsClassicEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD");
-characterStatsClassicEventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED");
-characterStatsClassicEventFrame:RegisterEvent("UNIT_AURA");
-characterStatsClassicEventFrame:RegisterEvent("PLAYER_DAMAGE_DONE_MODS");
-characterStatsClassicEventFrame:RegisterEvent("SKILL_LINES_CHANGED");
-characterStatsClassicEventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM");
-characterStatsClassicEventFrame:RegisterEvent("UNIT_DAMAGE");
-characterStatsClassicEventFrame:RegisterEvent("UNIT_ATTACK_SPEED");
-characterStatsClassicEventFrame:RegisterEvent("UNIT_RANGEDDAMAGE");
-characterStatsClassicEventFrame:RegisterEvent("UNIT_ATTACK");
-characterStatsClassicEventFrame:RegisterEvent("UNIT_RESISTANCES");
-characterStatsClassicEventFrame:RegisterEvent("UNIT_STATS");
-characterStatsClassicEventFrame:RegisterEvent("UNIT_MAXHEALTH");
-characterStatsClassicEventFrame:RegisterEvent("UNIT_ATTACK_POWER");
-characterStatsClassicEventFrame:RegisterEvent("UNIT_RANGED_ATTACK_POWER");
-characterStatsClassicEventFrame:RegisterEvent("COMBAT_RATING_UPDATE");
-characterStatsClassicEventFrame:RegisterEvent("VARIABLES_LOADED");
-characterStatsClassicEventFrame:RegisterEvent("RUNE_UPDATED");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "PLAYER_ENTERING_WORLD");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "PLAYER_EQUIPMENT_CHANGED");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "UNIT_AURA");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "PLAYER_DAMAGE_DONE_MODS");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "SKILL_LINES_CHANGED");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "UPDATE_SHAPESHIFT_FORM");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "UNIT_DAMAGE");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "UNIT_ATTACK_SPEED");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "UNIT_RANGEDDAMAGE");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "UNIT_ATTACK");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "UNIT_RESISTANCES");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "UNIT_STATS");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "UNIT_MAXHEALTH");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "UNIT_ATTACK_POWER");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "UNIT_RANGED_ATTACK_POWER");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "COMBAT_RATING_UPDATE");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "VARIABLES_LOADED");
+MYS_RegisterEvent(characterStatsClassicEventFrame, "RUNE_UPDATED");
 
 
 

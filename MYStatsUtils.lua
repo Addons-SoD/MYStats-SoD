@@ -43,11 +43,18 @@ local function MYS_GetAppropriateAttackRaiting(unit, category)
 		attackBase, attackModifier = UnitRangedAttack(unit)
 	end
 
-	local attackWithModifier = attackBase + attackModifier;
+	local attackWithModifier = MYS_Num(attackBase) + MYS_Num(attackModifier);
 	return attackWithModifier;
 end
 
 local function MYS_PaperDollFrame_SetLabelAndText(statFrame, label, text, isPercentage, numericValue, precision)
+	-- wow-forever: 属性/资源可能是 secret value，既不能格式化也不能参与运算。
+	-- 拿不到数值时按「不可读」显示占位符，避免整个面板报错。
+	if MYS_IsSecretValue(numericValue) then
+		numericValue = 0;
+		isPercentage = false;
+		text = "?";
+	end
 	if ( isPercentage ) then
 		precision = precision or "%.1F%%";
 		statFrame.Value:SetText(format(precision, numericValue));
@@ -65,6 +72,10 @@ local function MYS_PaperDollFrame_SetLabelAndText(statFrame, label, text, isPerc
 end
 
 local function MYS_PaperDollFormatStat(name, base, posBuff, negBuff)
+	-- wow-forever: secret value 不能参与算术/比较，统一按 0 处理
+	base = MYS_Num(base);
+	posBuff = MYS_Num(posBuff);
+	negBuff = MYS_Num(negBuff);
 	local effective = max(0,base + posBuff + negBuff);
 	local text = HIGHLIGHT_FONT_COLOR_CODE..name.." "..effective;
 	if ( ( posBuff == 0 ) and ( negBuff == 0 ) ) then
@@ -136,7 +147,8 @@ local function MYS_GetMP5FromGear(unit)
 end
 
  function MYS_GetSkillRankAndModifier(skillHeader, skillName)
-	local numSkills = GetNumSkillLines();
+	-- wow-forever: 技能线走 C_SkillInfo 兼容 shim；整体不可用时返回 0 条
+	local numSkills = GetNumSkillLines() or 0;
 	local skillIndex = 0;
 	local currentHeader = nil;
 
@@ -181,7 +193,8 @@ function MYS_GetMovementSpeed()
         currentSpeed = runSpeed
     end
 
-    currentSpeed = currentSpeed / 7 * 100
+    -- wow-forever: 移动速度可能是 secret value，按 0 处理避免除 nil / 算术报错
+    currentSpeed = MYS_Num(currentSpeed) / 7 * 100
     return MYS_Round(currentSpeed, 0)
 end
 function MYS_GetPlayerWeaponSkill(unit, weaponSlotId)
@@ -353,7 +366,8 @@ function MYS_CacheAPFromADItems(unit)
 end
 
 function MYS_GetDefense(unit)
-	local numSkills = GetNumSkillLines();
+	-- wow-forever: 技能线走 C_SkillInfo 兼容 shim；整体不可用时返回 0 条
+	local numSkills = GetNumSkillLines() or 0;
 	local skillIndex = 0;
 	local currentHeader = nil;
 	local playerLevel = UnitLevel(unit);
@@ -376,12 +390,14 @@ function MYS_GetDefense(unit)
 	if (skillIndex > 0) then
 		skillRank = select(4, GetSkillLineInfo(skillIndex));
 		skillModifier = select(6, GetSkillLineInfo(skillIndex));
-	else
+	elseif type(UnitDefense) == "function" then
 		-- Use this as a backup, just in case something goes wrong
+		-- wow-forever: 技能线整体不可用时退回 UnitDefense
 		skillRank, skillModifier = UnitDefense(unit); --Not working properly
 	end
 
-	return skillRank, skillModifier, playerLevel;
+	-- 两个值都可能为 nil / secret，这里统一收敛成数字，调用方可直接做运算
+	return MYS_Num(skillRank), MYS_Num(skillModifier), MYS_Num(playerLevel);
 end
 -- GENERAL UTIL FUNCTIONS END --
 
@@ -405,9 +421,16 @@ function MYS_PaperDollFrame_SetPrimaryStats(statFrames, unit)
 		local posBuff;
 		local negBuff;
 		stat, effectiveStat, posBuff, negBuff = UnitStat(unit, i);
+		-- wow-forever: 属性可能是 secret value，后面有大量加减/比较，读不到就按 0
+		stat = MYS_Num(stat);
+		effectiveStat = MYS_Num(effectiveStat);
+		posBuff = MYS_Num(posBuff);
+		negBuff = MYS_Num(negBuff);
 		
 		-- Set the tooltip text
-		local tooltipText = HIGHLIGHT_FONT_COLOR_CODE.._G["SPELL_STAT"..i.."_NAME"].." ";
+		-- wow-forever: 客户端若缺少对应 GlobalString，取名字时会拼出 nil，这里给个兜底
+		local statName = _G["SPELL_STAT"..i.."_NAME"] or ("Stat "..i);
+		local tooltipText = HIGHLIGHT_FONT_COLOR_CODE..statName.." ";
 
 		-- Get class specific tooltip for that stat
 		local temp, classFileName = UnitClass(unit);
@@ -447,7 +470,7 @@ function MYS_PaperDollFrame_SetPrimaryStats(statFrames, unit)
 				frameText = GREEN_FONT_COLOR_CODE..effectiveStat..FONT_COLOR_CODE_CLOSE;
 			end
 		end
-		MYS_PaperDollFrame_SetLabelAndText(statFrames[i], _G["SPELL_STAT"..i.."_NAME"], frameText, false, effectiveStat);
+		MYS_PaperDollFrame_SetLabelAndText(statFrames[i], statName, frameText, false, effectiveStat);
 		statFrames[i]:Show();
 	end
 	local speed=MYS_GetMovementSpeed();
@@ -477,6 +500,21 @@ function MYS_PaperDollFrame_SetDamage(statFrame, unit, category)
 
     local speed, offhandSpeed = MYS_GetAppropriateAttackSpeed(unit, category);
 	local minDamage, maxDamage, minOffHandDamage, maxOffHandDamage, physicalBonusPos, physicalBonusNeg, percentMod = MYS_GetAppropriateDamage(unit, category);
+
+	-- wow-forever: 武器伤害/攻速可能返回 secret value，不能参与后续运算，读不到按 0
+	speed = MYS_Num(speed);
+	minDamage = MYS_Num(minDamage);
+	maxDamage = MYS_Num(maxDamage);
+	physicalBonusPos = MYS_Num(physicalBonusPos);
+	physicalBonusNeg = MYS_Num(physicalBonusNeg);
+	if ( offhandSpeed ~= nil ) then
+		offhandSpeed = MYS_Num(offhandSpeed);
+		minOffHandDamage = MYS_Num(minOffHandDamage);
+		maxOffHandDamage = MYS_Num(maxOffHandDamage);
+	end
+	if MYS_IsSecretValue(percentMod) then
+		percentMod = 1;
+	end
 	
 	-- sometimes this is wrongly reported as 0
 	if percentMod == nil or percentMod == 0 then
@@ -606,6 +644,9 @@ end
 function MYS_PaperDollFrame_SetAttackBothHands(statFrame, unit)
 
 	local mainHandAttackBase, mainHandAttackMod = UnitAttackBothHands(unit);
+	-- wow-forever: 攻强可能是 secret value，按 0 处理后再运算
+	mainHandAttackBase = MYS_Num(mainHandAttackBase);
+	mainHandAttackMod = MYS_Num(mainHandAttackMod);
 	local attackWithModifier = mainHandAttackBase + mainHandAttackMod;
 	local attackText;
 
@@ -629,6 +670,10 @@ end
 function MYS_PaperDollFrame_SetMeleeAttackPower(statFrame, unit)
     
 	local base, posBuff, negBuff = UnitAttackPower(unit);
+	-- wow-forever: 攻强可能是 secret value，按 0 处理后再运算
+	base = MYS_Num(base);
+	posBuff = MYS_Num(posBuff);
+	negBuff = MYS_Num(negBuff);
 
 	if (UISettingsCharacter.showStatsFromArgentDawnItems) then
 		posBuff = posBuff + g_APFromADItems;
@@ -658,6 +703,10 @@ function MYS_PaperDollFrame_SetRangedAttackPower(statFrame, unit)
 	end
 
 	local base, posBuff, negBuff = UnitRangedAttackPower(unit);
+	-- wow-forever: 远程攻强可能是 secret value，按 0 处理后再运算
+	base = MYS_Num(base);
+	posBuff = MYS_Num(posBuff);
+	negBuff = MYS_Num(negBuff);
 
 	if (UISettingsCharacter.showStatsFromArgentDawnItems) then
 		posBuff = posBuff + g_APFromADItems;
@@ -679,7 +728,7 @@ function MYS_PaperDollFrame_SetCritChance(statFrame, unit)
 		GameTooltip:Hide()
     end)
 	
-	local critChance = GetCritChance();
+	local critChance = MYS_Num(GetCritChance());
 
     MYS_PaperDollFrame_SetLabelAndText(statFrame, STAT_CRITICAL_STRIKE, critChance, true, critChance);
 	statFrame.criticalStrikeTxt = format(PAPERDOLLFRAME_TOOLTIP_FORMAT, STAT_CRITICAL_STRIKE).." "..format("%.2F%%", critChance);
@@ -694,7 +743,7 @@ function MYS_PaperDollFrame_SetRangedCritChance(statFrame, unit)
 		return;
 	end
 
-	local critChance = GetRangedCritChance();
+	local critChance = MYS_Num(GetRangedCritChance());
 
     MYS_PaperDollFrame_SetLabelAndText(statFrame, STAT_CRITICAL_STRIKE, critChance, true, critChance);
 	statFrame.tooltip = format(PAPERDOLLFRAME_TOOLTIP_FORMAT, STAT_CRITICAL_STRIKE).." "..format("%.2F%%", critChance);
@@ -705,9 +754,10 @@ function MYS_CalcMaxSpellCrit()
 	local holySchool = 2;
 
 	-- Start at 2 to skip physical damage
-	local maxSpellCrit = GetSpellCritChance(holySchool);
+	-- wow-forever: 法系暴击可能是 secret value，按 0 处理后再比较
+	local maxSpellCrit = MYS_Num(GetSpellCritChance(holySchool));
 	for i=holySchool, MAX_SPELL_SCHOOLS do
-		local bonusCrit = GetSpellCritChance(i);
+		local bonusCrit = MYS_Num(GetSpellCritChance(i));
 		maxSpellCrit = max(maxSpellCrit, bonusCrit);
 	end
 	return maxSpellCrit;
@@ -721,12 +771,12 @@ function MYS_PaperDollFrame_SetSpellCritChance(statFrame, unit)
 	
 	local maxSpellCrit=MYS_CalcMaxSpellCrit()
 
-	statFrame.holyCrit = GetSpellCritChance(2);
-	statFrame.fireCrit = GetSpellCritChance(3);
-	statFrame.natureCrit = GetSpellCritChance(4);
-	statFrame.frostCrit = GetSpellCritChance(5);
-	statFrame.shadowCrit = GetSpellCritChance(6);
-	statFrame.arcaneCrit = GetSpellCritChance(7);
+	statFrame.holyCrit = MYS_Num(GetSpellCritChance(2));
+	statFrame.fireCrit = MYS_Num(GetSpellCritChance(3));
+	statFrame.natureCrit = MYS_Num(GetSpellCritChance(4));
+	statFrame.frostCrit = MYS_Num(GetSpellCritChance(5));
+	statFrame.shadowCrit = MYS_Num(GetSpellCritChance(6));
+	statFrame.arcaneCrit = MYS_Num(GetSpellCritChance(7));
 
 	local unitClassId = select(3, UnitClass(unit));
 	if (unitClassId == MYS_MAGE_CLASS_ID) then
@@ -797,7 +847,7 @@ function MYS_PaperDollFrame_SetHitChance(statFrame, unit)
 		GameTooltip:Hide()
 	end)
 	
-	local hitChance = GetHitModifier();
+	local hitChance = MYS_Num(GetHitModifier());
 	
 	if not hitChance then
 		hitChance = 0;
@@ -850,7 +900,8 @@ function MYS_PaperDollFrame_SetRangedHitChance(statFrame, unit)
 		GameTooltip:Hide()
 	end)
 	
-	local hitChance = GetHitModifier();
+	-- wow-forever: 命中可能是 secret value，按 0 处理后再运算
+	local hitChance = MYS_Num(GetHitModifier());
 	
 	if not hitChance then
 		hitChance = 0;
@@ -874,7 +925,8 @@ function MYS_PaperDollFrame_SetSpellHitChance(statFrame, unit)
 		GameTooltip:Hide()
 	end)
 
-	local hitChance = GetSpellHitModifier();
+	-- wow-forever: 法术命中可能是 secret value，按 0 处理后再运算
+	local hitChance = MYS_Num(GetSpellHitModifier());
 	
 	if not hitChance then
 		hitChance = 0;
@@ -905,7 +957,13 @@ function MYS_PaperDollFrame_SetSpellHaste(statFrame,unit)
 	local unitClassId = select(3, UnitClass(unit))
 
 	
-	local _,_,_,castTime=GetSpellInfo(8690)
+	-- wow-forever: GetSpellInfo 由兼容层转发到 C_Spell；拿不到施法时间时退回 10 秒，
+	-- 避免 10000/nil 或 10000/0 这类错误。
+	local castTime = 10000
+	local _, _, _, hearthstoneCastTime = GetSpellInfo(8690)
+	if type(hearthstoneCastTime) == "number" and hearthstoneCastTime > 0 then
+		castTime = hearthstoneCastTime
+	end
 	local haste=10000/castTime;
 
 	if unitClassId == MYS_MAGE_CLASS_ID then
@@ -944,11 +1002,13 @@ function MYS_PaperDollFrame_SetAttackSpeed(statFrame, unit)
 		GameTooltip:Hide()
 	end)
 	local speed, offhandSpeed = UnitAttackSpeed(unit);
+	-- wow-forever: 攻速可能是 secret value，按 0 处理后再格式化
+	speed = MYS_Num(speed);
 	local speedLabel = WEAPON_SPEED;
 
 	local displaySpeed = format("%.2F", speed);
 	if ( offhandSpeed ) then
-		offhandSpeed = format("%.2F", offhandSpeed);
+		offhandSpeed = format("%.2F", MYS_Num(offhandSpeed));
 	end
 	if ( offhandSpeed ) then
 		displaySpeed =  displaySpeed.." / ".. offhandSpeed;
@@ -969,6 +1029,8 @@ function MYS_PaperDollFrame_SetRangedAttackSpeed(statFrame, unit)
 	end
 
 	local attackSpeed, minDamage, maxDamage, bonusPos, bonusNeg, percent = UnitRangedDamage(unit);
+	-- wow-forever: secret value 不能格式化，按 0 处理
+	attackSpeed = MYS_Num(attackSpeed);
 	local displaySpeed = format("%.2F", attackSpeed);
 
 	MYS_PaperDollFrame_SetLabelAndText(statFrame, WEAPON_SPEED, displaySpeed, false, attackSpeed);
@@ -981,12 +1043,16 @@ function MYS_PaperDollFrame_SetRangeHaste(statFrame, unit)
     local unitClassId = select(3, UnitClass("player"));
     if unitClassId == MYS_HUNTER_CLASS_ID then
         speed = MYS_GetWeaponSpeed("player", 18) or 2
-        local realSpeed, minDamage, maxDamage, bonusPos, bonusNeg, percent = UnitRangedDamage(unit);
-        haste = ((speed / (realSpeed or speed)) -1)* 100
+        -- wow-forever: 远程攻速可能是 secret value，读不到就退回武器面板速度，避免除零
+        local realSpeed = MYS_Num(select(1, UnitRangedDamage(unit)), speed)
+        if realSpeed == 0 then
+            realSpeed = speed
+        end
+        haste = ((speed / realSpeed) -1)* 100
 		if haste<0 then
 			haste =0
 		end
-        quiver = MYS_GetRangeQuiverSpeed();
+        quiver = MYS_GetRangeQuiverSpeed() or 0;
     else
         haste = 0
         quiver = 0
@@ -1002,6 +1068,12 @@ function MYS_PaperDollFrame_SetArmor(statFrame, unit)
 
 	local base, effectiveArmor, armor, posBuff, negBuff = UnitArmor(unit);
 	--negBuff = 0; -- Remove for Classic
+	-- wow-forever: 护甲可能是 secret value，按 0 处理后再计算减伤
+	base = MYS_Num(base);
+	effectiveArmor = MYS_Num(effectiveArmor);
+	armor = MYS_Num(armor);
+	posBuff = MYS_Num(posBuff);
+	negBuff = MYS_Num(negBuff);
 
 	if (unit ~= "player") then
 		--[[ In 1.12.0, UnitArmor didn't report positive / negative buffs for units that weren't the active player.
@@ -1048,7 +1120,7 @@ function MYS_PaperDollFrame_SetDefense(statFrame, unit)
 end
 
 function MYS_PaperDollFrame_SetDodge(statFrame, unit)
-	local chance = GetDodgeChance();
+	local chance = MYS_Num(GetDodgeChance());
 	MYS_PaperDollFrame_SetLabelAndText(statFrame, STAT_DODGE, chance, true, chance, "%.2F%%");
 	statFrame.tooltip = format(PAPERDOLLFRAME_TOOLTIP_FORMAT, DODGE_CHANCE).." "..string.format("%.2F", chance).."%";
 	--statFrame.tooltip2 = format(CR_DODGE_TOOLTIP, GetCombatRating(CR_DODGE), GetCombatRatingBonus(CR_DODGE));
@@ -1056,7 +1128,7 @@ function MYS_PaperDollFrame_SetDodge(statFrame, unit)
 end
 
 function MYS_PaperDollFrame_SetParry(statFrame, unit)
-	local chance = GetParryChance();
+	local chance = MYS_Num(GetParryChance());
 	MYS_PaperDollFrame_SetLabelAndText(statFrame, STAT_PARRY, chance, true, chance, "%.2F%%");
 	statFrame.tooltip = format(PAPERDOLLFRAME_TOOLTIP_FORMAT, PARRY_CHANCE).." "..string.format("%.2F", chance).."%";
 	--statFrame.tooltip2 = format(CR_PARRY_TOOLTIP, GetCombatRating(CR_PARRY), GetCombatRatingBonus(CR_PARRY));
@@ -1176,7 +1248,8 @@ function MYS_GetBlockValue(unit)
 
 	local strStatIndex = 1;
 	local strength = select(2, UnitStat(unit, strStatIndex));
-	local blockValue = blockValueFromItems + (strength / 20);
+	-- wow-forever: 力量可能是 secret value，按 0 处理后再算格挡值
+	local blockValue = blockValueFromItems + (MYS_Num(strength) / 20);
 	
 	local requiredMightSetItems = 3;
 	if (equippedMightSetItems >= requiredMightSetItems) then
@@ -1193,7 +1266,7 @@ function MYS_PaperDollFrame_SetBlock(statFrame, unit)
 		GameTooltip:Hide()
 	end)
 	
-	local blockChance = GetBlockChance();
+	local blockChance = MYS_Num(GetBlockChance());
 	MYS_PaperDollFrame_SetLabelAndText(statFrame, STAT_BLOCK, blockChance, true, blockChance, "%.2F%%");
 
 	statFrame.blockChance = string.format("%.2F", blockChance).."%";
@@ -1203,7 +1276,7 @@ function MYS_PaperDollFrame_SetBlockValue(statFrame, unit)
 
 	
 	
-	local blockValue = GetShieldBlock();
+	local blockValue = MYS_Num(GetShieldBlock());
 	MYS_PaperDollFrame_SetLabelAndText(statFrame, "格挡值", blockValue, false, blockValue, "%d");
 
 	statFrame:Show();
@@ -1227,7 +1300,7 @@ end
 function MYS_PaperDollFrame_SetDefenceBlock(statFrame, unit) 
 	local defenceTable=MYS_GetDefenceTable()
 	MYS_PaperDollFrame_SetLabelAndText(statFrame, "格挡", "", true, defenceTable.blockChance,"%.2F%%");
-	statFrame.tooltip=string.format("面对63级boss的格挡几率为%.2f%%\n格挡值：%d",defenceTable.blockChance,GetShieldBlock())
+	statFrame.tooltip=string.format("面对63级boss的格挡几率为%.2f%%\n格挡值：%d",defenceTable.blockChance,MYS_Num(GetShieldBlock()))
 	statFrame:Show();
 	
 end
@@ -1255,7 +1328,7 @@ function MYS_PaperDollFrame_SetCombatMissHit(statFrame,unit,targetDefence)
 	local  skill = MYS_GetPlayerWeaponSkill(unit,16) or 300;
 	
 	local offhand,_=GetInventoryItemID(unit,17)
-	local hitChance = GetHitModifier() or 0;
+	local hitChance = MYS_Num(GetHitModifier());
 	if not targetDefence then
 		targetDefence=315
 	end
@@ -1379,7 +1452,7 @@ function MYS_PaperDollFrame_SetCombatCrited(statFrame, unit,sum,p,targetDefence)
 	if not targetDefence then
 		targetDefence=315
 	end
-	local value=GetCritChance()
+	local value=MYS_Num(GetCritChance())
 	value=value-(targetDefence-skill)*0.04
 	if value <0 then
 		value =0
@@ -1426,9 +1499,10 @@ function MYS_CalcMaxSpellPower()
 	local holySchool = 2;
 
 	-- Start at 2 to skip physical damage
-	local maxSpellDmg = GetSpellBonusDamage(holySchool);
+	-- wow-forever: 法强可能是 secret value，按 0 处理后再比较
+	local maxSpellDmg = MYS_Num(GetSpellBonusDamage(holySchool));
 	for i=holySchool, MAX_SPELL_SCHOOLS do
-		local bonusDamage = GetSpellBonusDamage(i);
+		local bonusDamage = MYS_Num(GetSpellBonusDamage(i));
 		maxSpellDmg = max(maxSpellDmg, bonusDamage);
 	end
 	return maxSpellDmg
@@ -1505,6 +1579,9 @@ function MYS_PaperDollFrame_SetManaRegen(statFrame, unit)
 	-- There is a bug in GetManaRegen() so I have to manually calculate mp5
 	-- base == casting always and this is wrong
 	local base, casting = GetManaRegen();
+	-- wow-forever: 回蓝可能是 secret value，按 0 处理后再运算
+	base = MYS_Num(base);
+	casting = MYS_Num(casting);
 	
 	-- to avoid the wrongly reported "0" regen after an update
 	if base < 1 then base = g_lastSeenBaseManaRegen end
@@ -1541,7 +1618,8 @@ end
 
 function MYS_PaperDollFrame_SetHealing(statFrame, unit)
 	local unitClassId = select(3, UnitClass(unit));
-	local healing = GetSpellBonusHealing();
+	-- wow-forever: 治疗强度可能是 secret value，按 0 处理
+	local healing = MYS_Num(GetSpellBonusHealing());
 
 	local healingText = healing;
 	MYS_PaperDollFrame_SetLabelAndText(statFrame, STAT_SPELLHEALING, healingText, false, healing);

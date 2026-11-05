@@ -30,6 +30,26 @@ local NUM_STATS_TO_SHOW = 6;
 local LeftStatsTable = {}
 local RightStatsTable = {}
 
+-- wow-forever: CharacterStatFrameTemplate 由 Blizzard 角色面板提供。
+-- 万一客户端不再提供该模板，CreateFrame 会直接报错导致整个插件不加载，
+-- 这里探测一次并退回自建 Frame（补齐 Value / Label / Background 三个元素）。
+local function MYS_CreateStatFrame(parentFrame)
+    local ok, frame = pcall(CreateFrame, "Frame", nil, parentFrame, "CharacterStatFrameTemplate");
+    if ok and frame then
+        return frame;
+    end
+
+    frame = CreateFrame("Frame", nil, parentFrame);
+    frame:SetSize(130, 16);
+    frame.Background = frame:CreateTexture(nil, "BACKGROUND");
+    frame.Background:SetAllPoints(frame);
+    frame.Value = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall");
+    frame.Value:SetPoint("RIGHT", frame, "RIGHT", 0, 0);
+    frame.Label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
+    frame.Label:SetPoint("LEFT", frame, "LEFT", 0, 0);
+    return frame;
+end
+
 local function MYS_ResetStatFrames(statFrames)
 
     local statFrameDefaultAlpha = 0.3;
@@ -62,12 +82,12 @@ function UIConfig:InitializeStatsFrames(leftParentFrame, rightParentFrame)
             accumulatedOffsetY = 32;
         end
 
-        LeftStatsTable[i] = CreateFrame("Frame", nil, leftParentFrame, "CharacterStatFrameTemplate");
+        LeftStatsTable[i] = MYS_CreateStatFrame(leftParentFrame);
         LeftStatsTable[i]:SetPoint("LEFT", leftParentFrame, "TOPLEFT", 10, -actualOffset);
         LeftStatsTable[i]:SetWidth(130);
         LeftStatsTable[i].OnEnterCallback = LeftStatsTable[i]:GetScript("OnEnter");
 
-        RightStatsTable[i] = CreateFrame("Frame", nil, rightParentFrame, "CharacterStatFrameTemplate");
+        RightStatsTable[i] = MYS_CreateStatFrame(rightParentFrame);
         RightStatsTable[i]:SetPoint("LEFT", rightParentFrame, "TOPLEFT", 10, -actualOffset);
         RightStatsTable[i]:SetWidth(130);
         RightStatsTable[i].OnEnterCallback = RightStatsTable[i]:GetScript("OnEnter");
@@ -140,7 +160,10 @@ end
 
 function UIConfig:CreateMenu()
     -- Hide the default stats
-    CharacterAttributesFrame:Hide();
+    -- wow-forever: 该面板由 Blizzard 角色面板提供，取不到时跳过而不是报错
+    if CharacterAttributesFrame then
+        CharacterAttributesFrame:Hide();
+    end
 
     MYS_UIFrame.CharacterStatsPanel = CreateFrame("Frame", nil, CharacterFrame); -- CharacterFrameInsetRight
     MYS_UIFrame.CharacterStatsPanel:SetPoint("LEFT", CharacterFrame, "BOTTOMLEFT", 50, 85); -- 85 for 6 stats
@@ -195,15 +218,27 @@ function UIConfig:InitializeRightStatsDropdown(self, level)
     end
 end
 
+-- wow-forever: UIDropDownMenuTemplate 属于 legacy FrameXML 模板。
+-- 若客户端不再提供，退回普通 Frame：面板仍能显示统计（只是下拉框外观/切换不可用），
+-- 避免 SetupDropdown 抛错而让整个角色面板插件失效。
+local function MYS_CreateDropdownFrame(parentFrame)
+    local ok, frame = pcall(CreateFrame, "Frame", nil, parentFrame, "UIDropDownMenuTemplate");
+    if ok and frame then
+        return frame;
+    end
+
+    frame = CreateFrame("Frame", nil, parentFrame);
+    frame:SetSize(99, 32);
+    return frame;
+end
+
 function UIConfig:SetupDropdown()
 
-    MYS_UIFrame.CharacterStatsPanel.leftStatsDropDown = CreateFrame("Frame", nil, MYS_UIFrame.CharacterStatsPanel,
-        "UIDropDownMenuTemplate");
+    MYS_UIFrame.CharacterStatsPanel.leftStatsDropDown = MYS_CreateDropdownFrame(MYS_UIFrame.CharacterStatsPanel);
     MYS_UIFrame.CharacterStatsPanel.leftStatsDropDown:SetPoint("TOPLEFT", MYS_UIFrame.CharacterStatsPanel, "TOPLEFT", 0,
         0);
 
-    MYS_UIFrame.CharacterStatsPanel.rightStatsDropDown = CreateFrame("Frame", nil, MYS_UIFrame.CharacterStatsPanel,
-        "UIDropDownMenuTemplate");
+    MYS_UIFrame.CharacterStatsPanel.rightStatsDropDown = MYS_CreateDropdownFrame(MYS_UIFrame.CharacterStatsPanel);
     MYS_UIFrame.CharacterStatsPanel.rightStatsDropDown:SetPoint("TOPLEFT", MYS_UIFrame.CharacterStatsPanel, "TOPLEFT",
         115, 0);
 
@@ -279,7 +314,10 @@ local function MYS_ToggleCharacterPostHook(tab, onlyShow)
         if CSC_HideStatsPanel then
             CSC_HideStatsPanel()
         end
-        CharacterAttributesFrame:Hide();
+        -- wow-forever: 同样做 nil 保护
+        if CharacterAttributesFrame then
+            CharacterAttributesFrame:Hide();
+        end
         MYS_GearStats = MYS_ScanGearStats("player")
         MYS_UIFrame:UpdateStats();
     else

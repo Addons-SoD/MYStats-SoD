@@ -17,12 +17,13 @@ function MYS_CalcDefenceTable(unit)
 
     sum = defenceTable.unhitted
 
-    defenceTable.parry = MYS_TableCap(GetParryChance() - (315-playerLevel*5) * 0.04, sum)
+    -- wow-forever: 暴击/躲闪/招架/格挡返回值可能是 secret value，先收敛成数字再进圆桌计算
+    defenceTable.parry = MYS_TableCap(MYS_Num(GetParryChance()) - (315-playerLevel*5) * 0.04, sum)
     sum = sum + defenceTable.parry;
-    defenceTable.dodge = MYS_TableCap(GetDodgeChance() - (315-playerLevel*5)* 0.04, sum)
+    defenceTable.dodge = MYS_TableCap(MYS_Num(GetDodgeChance()) - (315-playerLevel*5)* 0.04, sum)
     sum = sum + defenceTable.dodge;
 
-    defenceTable.blockChance = MYS_TableCap(GetBlockChance() - (315-playerLevel*5), sum)
+    defenceTable.blockChance = MYS_TableCap(MYS_Num(GetBlockChance()) - (315-playerLevel*5), sum)
     sum = sum + defenceTable.blockChance;
     defenceTable.critHitted = 5 - (skillRank + skillModifier - 315) * 0.04
 
@@ -42,22 +43,37 @@ function MYS_GetDefenceTable()
 end
 
 function MYS_GetWAOutput()
+    -- wow-forever: 攻强/暴击等可能是 secret value，先收敛成数字，避免 %d/%.2F 格式化报错
     local ap, apa, apd = UnitAttackPower("player")
     local rap, rapa, rapd = UnitRangedAttackPower("player");
-    local _, _, _, castTime = GetSpellInfo(8690)
+    ap, apa, apd = MYS_Num(ap), MYS_Num(apa), MYS_Num(apd)
+    rap, rapa, rapd = MYS_Num(rap), MYS_Num(rapa), MYS_Num(rapd)
+    -- wow-forever: GetSpellInfo 由兼容层转发到 C_Spell.GetSpellInfo；
+    -- 炉石(8690)数据拿不到时退回 10 秒基础施法时间，避免除零/除 nil。
+    local castTime = 10000
+    local _, _, _, spellCastTime = GetSpellInfo(8690)
+    if type(spellCastTime) == "number" and spellCastTime > 0 then
+        castTime = spellCastTime
+    end
     local speed = MYS_GetWeaponSpeed("player", 16) or 2
     local rangedHaste = 0
     if unitClassId == MYS_HUNTER_CLASS_ID then
         speed = MYS_GetWeaponSpeed("player", 18) or 2
-        local realSpeed, minDamage, maxDamage, bonusPos, bonusNeg, percent = UnitRangedDamage("player");
-        rangedHaste = ((speed / (realSpeed or speed)) - 1) * 100
+        local realSpeed = MYS_Num(select(1, UnitRangedDamage("player")), speed);
+        if realSpeed == 0 then
+            realSpeed = speed
+        end
+        rangedHaste = ((speed / realSpeed) - 1) * 100
         if rangedHaste < 0 then
             rangedHaste = 0
         end
     end
 
-    local realSpeed, offSpeed = UnitAttackSpeed("player");
-    local meleeHaste = (speed / (realSpeed or speed) - 1) * 100
+    local realSpeed = MYS_Num(select(1, UnitAttackSpeed("player")), speed);
+    if realSpeed == 0 then
+        realSpeed = speed
+    end
+    local meleeHaste = (speed / realSpeed - 1) * 100
     if meleeHaste < 0 then
         meleeHaste = 0
     end
@@ -69,14 +85,14 @@ function MYS_GetWAOutput()
         string.format("近战攻强：%d", ap + apa - apd),
         string.format("远程攻强：%d", rap + rapa - rapd),
         string.format("法术伤害：%d", MYS_CalcMaxSpellPower()),
-        string.format("近战暴击：%.2F%%", GetCritChance()),
-        string.format("远程暴击：%.2F%%", GetRangedCritChance()),
+        string.format("近战暴击：%.2F%%", MYS_Num(GetCritChance())),
+        string.format("远程暴击：%.2F%%", MYS_Num(GetRangedCritChance())),
         string.format("法术暴击：%.2F%%", MYS_CalcMaxSpellCrit()),
         string.format("近战急速：%.2F%%", meleeHaste), 
         string.format("远程急速：%.2F%%", rangedHaste),
         string.format("法系急速：%.2F%%", spellHaste),
         string.format("格挡几率：%.2F%%", defenceTable.blockChance),
-        string.format("格挡值  ：%d", GetShieldBlock())
+        string.format("格挡值  ：%d", MYS_Num(GetShieldBlock()))
 
 end
 local wa='!WA:2!fw1ZRTXXxCz8bx2gc1(GH8RIBsDcLgcr2Xko3QxxPMylB5UsU2(0Qz3z2DNMD3zyMzTTYPGOh(MlfAoviqHkkKdTuOIEOLEOqo898IP)feAsBU6(pqFZQfPK0vocpEFZmV5nVF859zMO2mrZGNb))wtCydppjrD7p6WT39(LkvQpMk5HOoTihQ4lpVBzJ5DxaglcJBaJLGrfyCtySmmUfmkFD9)0AwwRA5fn4x6LmJThteHu2ULT9DX2bumX(Eeblq0j)Y)95kL9Rpk2nGj2IrJvoRwDZwvT4xTylPOreBCNyue11wfiiYawiUdF(IvpIft6yZfexQKYINIpxb6Xhy1bZMqGCvGQYkwsfsOmmPXuLHJh8rgyWV44nqedBlqksB(5lYBwoxYmgCQIvPCUu6083V49roocY(u4wSJqh(28luOAJSJPhdYPV43(6)(h)oZqgcxZusVhzwROKqf1WuYjUZMEgdl3qKuQLCuOqsSslwStERro5LoHI0WSXrYaeMDWUdk6tYpxXhYLfYePNBmrugecgThxIj7ohwONSNI5UprOLFRR(poUSypQ)SomUU2g0ZJEibVdfRc(ItjyjQqAmr0y7w1VZMv5xP4BWH6BhNe5qe5lYNDLHvJ6iHpzZSDLwzHYAtc)65MivSiTLoEJ9AA)je1oR0irXH)km5EZrj35EtiG283zK53MJHLCsY(8uucSmsrDZIrZvGPDvcQVp4EN(YICX)VPQdNyHseOfEQmXHSpu4BM4bzN(2RUsZw2nBTIvl(0jsITpbsru3MbSdAe32kt3U1zUiDg1mbAsC0Elr0vRTEE7Ua6km8oyPXrVYPFQm7ZQmO1LDq8t0hGQirBIIiTTGEBI0yO)SLGa(JvZTQwVEpmeHEETaVwC7Q13Q221FysCE0yWNw36UpP1G5BWWKFOuHWnEUGLg1GpgODiIyu4NnaW89JbdU4WAZdrX0OSaVs6PQLwjD6NqqsstLGe7RcM6imKs1BBRtWcjbWFyzxToAFhAlJq04SdMU1uPFAQvAtq80V(kfJrwyeg5kNqZqiXh52X2lKXebf31nYqfhXJUPJaefqr3iR)rEwV0kokMVFirafVpMiDdw4UKoPZBQREDFX9FWl(2FDUYcmXdbenbwhOXHt2vZg1e4F(GIJSB8gr)cckmYwFjwXa8qmo6cocRjiVq)bKpRM1roXetm5cjuC)f3lA9nxB9139gTEOKe6n4LhZgTA1yd(7Dc5083i6ji(qEqxlnv6xmF3XtA5IKQGXPqMBc4ulaYgOoEW7G1eq4PTTtZvTQwDZXvLXazxek8Ly9kKqM)6CJDpGjW7iq8U7KlW)WXFU)7JT5e67nGq)8LeFoWcr96ywVATw8Zm2inOWhph(kDoP60JivZ5tVifZN5p)Lh8Sh9Zp7N(MNF)h)xp6RE(x(4(E68e0ZHuOjlgpnQJT49xA0(xE8zGxTrQya31hAPEaXLvg8qE2ztRCem1b5ExF4zMyCXUrLrhwtuqZ6Xm6tJhSmmZyCOYmewakoMegmJuS01kFRRv(6ZS)FS7)c'

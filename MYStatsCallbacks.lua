@@ -73,7 +73,8 @@ end
 function MYS_CharacterBlock_OnEnter(self)
 	
 	if true then
-		self.blockValue = GetShieldBlock();
+		-- wow-forever: 格挡值可能是 secret value，按 0 处理
+		self.blockValue = MYS_Num(GetShieldBlock());
 	else
 		self.blockValue = MYS_GetBlockValue("player");
 		
@@ -187,7 +188,9 @@ function MYS_CharacterSpellHitChanceFrame_OnEnter(self)
 	elseif self.unitClassId == MYS_SHAMAN_CLASS_ID then
 		GameTooltip:SetText(format(MYS_SPELL_HIT_TOOLTIP_2_TXT, self.hitChance), HIGHLIGHT_FONT_COLOR.r, HIGHLIGHT_FONT_COLOR.g, HIGHLIGHT_FONT_COLOR.b);
 	elseif self.unitClassId == MYS_PALADIN_CLASS_ID then
-		local holyHit=MYS_GearStats[MYS_HOLYHIT] or 0
+		-- wow-forever: 装备扫描结果尚未生成时（例如未打开过角色面板）不能索引 nil
+		local gearStats = MYS_GearStats or {};
+		local holyHit = gearStats[MYS_HOLYHIT] or 0;
 		GameTooltip:AddLine(MYS_SYMBOL_SPACE); -- Blank line.
 		GameTooltip:AddLine(format("神圣法术命中：%d%%",holyHit));
 	end
@@ -232,7 +235,8 @@ function MYS_CharacterCombatHit_OnEnter(self)
 	GameTooltip:Show();
 end
 function MYS_CharacterMeleeCritFrame_OnEnter(self)
-	local hitChance = GetHitModifier();
+	-- wow-forever: 命中可能是 secret value，按 0 处理后再参与圆桌计算
+	local hitChance = MYS_Num(GetHitModifier());
 	local totalWeaponSkill = MYS_GetPlayerWeaponSkill("player", INVSLOT_MAINHAND) or 300;
 	local missChanceVsNPC, missChanceVsBoss, missChanceVsPlayer, dwMissChanceVsNpc, dwMissChanceVsBoss, dwMissChanceVsPlayer = MYS_GetPlayerMissChances("player", hitChance, totalWeaponSkill);
 

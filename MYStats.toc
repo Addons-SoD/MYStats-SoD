@@ -1,12 +1,13 @@
-## Interface: 11507
+## Interface: 16001
 ## Author: Peter Getov MiaoYing
-## Version: 0.0.1
+## Version: 0.1.0
 ## Title: |cff00aeff喵影属性显示插件|r
 ## Notes: 简约原生界面 可以展示plus的急速精准属性 并可以展示防御圆桌和攻击圆桌
 ## DefaultState:  enabled
 ## SavedVariables: MYStatsDB
 ## SavedVariablesPerCharacter: MYStatsCharacterDB
 
+MYStatsCompat.lua
 Localization\Localization_en.lua
 Localization\Localization_de.lua
 Localization\Localization_cn.lua
